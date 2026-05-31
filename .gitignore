@@ -1,13 +1,21 @@
 node_modules
 .next
-.env
-.env.local
-.env*.local
-*.log
-.DS_Store
-.vercel
-*.tsbuildinfo
-next-env.d.ts
+out
 dist
 build
 coverage
+.vitest
+
+# env files
+.env
+.env.local
+.env*.local
+
+# logs and OS cruft
+*.log
+.DS_Store
+
+# editor / tooling
+.vercel
+*.tsbuildinfo
+next-env.d.ts

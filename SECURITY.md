@@ -12,7 +12,7 @@ Please include:
 - The version (commit SHA) you tested against
 - Any proof-of-concept code or output
 
-You should expect an acknowledgement within 5 working days. Confirmed issues will be patched on `main` and released as a tagged version; reporters are credited in the release notes unless they request otherwise.
+I respond to every report within 7 days. Confirmed issues are patched on `main` and released as a tagged version; reporters are credited in the release notes unless they request otherwise.
 
 ## Supported versions
 

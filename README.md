@@ -1,12 +1,10 @@
 # Receipt Scanner
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/github/license/sarmakska/receipt-scanner)](https://github.com/sarmakska/receipt-scanner/blob/main/LICENSE)
+[![Top language](https://img.shields.io/github/languages/top/sarmakska/receipt-scanner)](https://github.com/sarmakska/receipt-scanner)
+[![Last commit](https://img.shields.io/github/last-commit/sarmakska/receipt-scanner)](https://github.com/sarmakska/receipt-scanner/commits/main)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![Anthropic](https://img.shields.io/badge/Anthropic-Claude_Vision-d97757)](https://anthropic.com)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://vercel.com)
-[![Open Source](https://img.shields.io/badge/Open_Source-%E2%9D%A4-red)](https://github.com/sarmakska/receipt-scanner)
 
 **A working AI receipt OCR starter. Drop a photo of a receipt, get structured JSON.**
 
@@ -16,7 +14,9 @@ Built by [Sarma Linux](https://sarmalinux.com). Built to drop into a real expens
 
 ## What this is
 
-Upload a photo of a receipt. The app sends it to a vision-capable language model and extracts structured fields:
+Receipt Scanner is a working Next.js starter that turns a photo of a receipt into validated, structured JSON. You upload an image, a vision-capable language model reads it, and the output is checked against a Zod schema before it ever reaches your UI or database. Fork it, point it at your storage and accounting backend, and ship.
+
+It extracts:
 
 - vendor name and address
 - transaction date and time
@@ -64,6 +64,18 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000), upload a receipt, see structured data.
 
+Full documentation lives in the [wiki](https://github.com/sarmakska/receipt-scanner/wiki): architecture, model swapping, database wiring, edge cases, and deployment.
+
+## What is in the box
+
+- **`app/page.tsx`** the upload UI. Drag a file in, see the parsed table.
+- **`app/api/scan/route.ts`** the scan endpoint. Receives the image, orchestrates the pipeline, returns validated JSON.
+- **`lib/vision.ts`** the single vision call. One function, one model. Swap its body for any other vision provider.
+- **`lib/schema.ts`** the Zod contract every scan must satisfy before it reaches the UI or a database.
+- **`lib/persist.ts`** a no-op `save()` stub. Drop in a Supabase insert, a webhook, or your own backend.
+- **`docs/schema.sql`** a Postgres / Supabase schema that mirrors the Zod contract, ready to apply.
+- **A smoke test** (`lib/schema.test.ts`) and a CI gate that runs type check, lint, test, and build on every push.
+
 ## Tech stack
 
 | Layer | Choice | Why |
@@ -79,7 +91,7 @@ Open [http://localhost:3000](http://localhost:3000), upload a receipt, see struc
 
 | Env var | Required | Default | Purpose |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | yes | — | Vision API access |
+| `ANTHROPIC_API_KEY` | yes | none | Vision API access |
 | `VISION_MODEL` | no | `claude-3-5-sonnet-latest` | Override the model |
 | `MAX_IMAGE_PX` | no | `1568` | Max dimension before resize, balances cost and accuracy |
 
@@ -103,13 +115,27 @@ After scanning, the structured JSON is yours. Three common targets:
 
 Set `ANTHROPIC_API_KEY` in the Vercel environment and you are live.
 
-## Limitations (honest list)
+## When to use this, when not to
+
+Use this when:
+
+- You want a working receipt-to-JSON pipeline you can fork and ship, not a tutorial.
+- You are building an expense, bookkeeping, or finance product and need a proven OCR baseline.
+- You want a clean schema boundary so malformed model output never reaches your database.
+- You want to swap vision providers without rewriting the app.
+
+Look elsewhere when:
+
+- **You need multi-page PDF receipts out of the box.** This handles a single image per scan. Rasterise multi-page documents upstream first.
+- **You need a managed product with support and an SLA.** This is an open-source starter, not a hosted service. Use Expensify or Dext if you want to buy rather than build.
+- **You need offline or fully on-premise inference today.** The default path calls a hosted vision API. The swap point is one function, but you supply the local model.
+- **You cannot tolerate per-scan token cost.** Each scan is one vision API call. Resizing keeps it under roughly £0.01 in most cases, but it is not free.
+
+Honest constraints worth knowing:
 
 - **Anthropic-only by default.** Easy to swap, but the default ships only the Claude path.
-- **No multi-page PDFs.** Single image at a time. Multi-page receipts work if rasterised first; do that upstream.
-- **No persistence layer included.** Add `pg` / `supabase-js` and a single insert. Stub provided.
+- **No persistence layer included.** Add `pg` or `supabase-js` and a single insert. The stub and schema are provided.
 - **HEIC handled by `sharp`.** On serverless, make sure your platform ships HEIC support. Vercel does.
-- **Token cost.** Each scan is one vision API call. Resizing keeps it under £0.01 in most cases. Mileage varies.
 
 ## Roadmap
 
@@ -125,9 +151,9 @@ PRs welcome.
 
 ## Related work
 
-- [SarmaLink-AI](https://github.com/sarmakska/Sarmalink-ai) — multi-provider AI backend with automatic failover
-- [StaffPortal](https://github.com/sarmakska/staff-portal) — open-source staff management (uses this scanner pattern internally)
-- [RAG-over-PDF](https://github.com/sarmakska/rag-over-pdf) — sister starter for document QA
+- [SarmaLink-AI](https://github.com/sarmakska/Sarmalink-ai): multi-provider AI backend with automatic failover
+- [StaffPortal](https://github.com/sarmakska/staff-portal): open-source staff management (uses this scanner pattern internally)
+- [RAG-over-PDF](https://github.com/sarmakska/rag-over-pdf): sister starter for document QA
 
 ## License
 
@@ -155,6 +181,6 @@ Part of a portfolio of twelve production-shaped open-source repositories built a
 | [webhook-to-email](https://github.com/sarmakska/webhook-to-email) | Webhook receiver that forwards events to email via Resend |
 | [k8s-ops-toolkit](https://github.com/sarmakska/k8s-ops-toolkit) | Helm chart for shipping Next.js to Kubernetes with full observability stack |
 | [terraform-stack](https://github.com/sarmakska/terraform-stack) | Vercel + Supabase + Cloudflare + DigitalOcean modules in one Terraform repo |
-| [staff-portal](https://github.com/sarmakska/staff-portal) | Open-source HR / ops portal — leave, attendance, expenses, kiosk mode |
+| [staff-portal](https://github.com/sarmakska/staff-portal) | Open-source HR / ops portal: leave, attendance, expenses, kiosk mode |
 
 Engineering essays at [sarmalinux.com/blog](https://sarmalinux.com/blog) &middot; All projects at [sarmalinux.com/open-source](https://sarmalinux.com/open-source)

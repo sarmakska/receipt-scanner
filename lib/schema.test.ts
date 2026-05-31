@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { receiptSchema } from './schema'
-import { save } from './persist'
-
-// Smoke test: the Zod schema is the contract every scan must satisfy
-// before it reaches the UI or a database. If this parses, the core path boots.
+import { receiptSchema, normaliseReceipt, storedReceiptSchema } from './schema'
 
 describe('receiptSchema', () => {
   it('parses a representative receipt payload', () => {
@@ -30,20 +26,68 @@ describe('receiptSchema', () => {
     expect(parsed.total).toBe(3.25)
   })
 
-  it('defaults items to an empty array when omitted', () => {
-    const parsed = receiptSchema.parse({ vendor: 'Corner Shop' })
-    expect(parsed.items).toEqual([])
-  })
-
   it('rejects a non-numeric total', () => {
-    expect(() => receiptSchema.parse({ total: 'twelve quid' })).toThrow()
+    expect(() =>
+      receiptSchema.parse({
+        vendor: null,
+        vendor_address: null,
+        date: null,
+        time: null,
+        currency: null,
+        items: [],
+        subtotal: null,
+        tax: null,
+        tip: null,
+        total: 'twelve quid',
+        payment_method: null,
+        notes: null,
+      }),
+    ).toThrow()
   })
 })
 
-describe('persist.save', () => {
-  it('returns an id for a parsed receipt', async () => {
-    const result = await save(receiptSchema.parse({ vendor: 'Test' }))
-    expect(typeof result.id).toBe('string')
-    expect(result.id.length).toBeGreaterThan(0)
+describe('normaliseReceipt', () => {
+  it('produces a total receipt shape with an items array', () => {
+    const r = normaliseReceipt({
+      vendor: 'Corner Shop',
+      vendor_address: null,
+      date: null,
+      time: null,
+      currency: null,
+      items: [],
+      subtotal: null,
+      tax: null,
+      tip: null,
+      total: null,
+      payment_method: null,
+      notes: null,
+    })
+    expect(r.vendor).toBe('Corner Shop')
+    expect(r.items).toEqual([])
+  })
+})
+
+describe('storedReceiptSchema', () => {
+  it('extends a receipt with id, storage key, hash, and timestamp', () => {
+    const stored = storedReceiptSchema.parse({
+      vendor: 'Test',
+      vendor_address: null,
+      date: null,
+      time: null,
+      currency: null,
+      items: [],
+      subtotal: null,
+      tax: null,
+      tip: null,
+      total: null,
+      payment_method: null,
+      notes: null,
+      id: 'abc',
+      image_key: 'receipts/abc.jpg',
+      image_sha256: 'deadbeef',
+      scanned_at: '2026-05-31T00:00:00.000Z',
+    })
+    expect(stored.id).toBe('abc')
+    expect(stored.image_key).toBe('receipts/abc.jpg')
   })
 })

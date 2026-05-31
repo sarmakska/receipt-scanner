@@ -1,0 +1,18 @@
+{
+  "vendor": "Tesco",
+  "vendor_address": "1 High Street, London, EC1A 1AA",
+  "date": "2026-05-21",
+  "time": "14:32",
+  "currency": "GBP",
+  "items": [
+    { "description": "Semi-Skimmed Milk 2L", "quantity": 1, "unit_price": 1.45, "total": 1.45 },
+    { "description": "Wholemeal Bread", "quantity": 2, "unit_price": 0.9, "total": 1.8 },
+    { "description": "Free Range Eggs x6", "quantity": 1, "unit_price": 2.1, "total": 2.1 }
+  ],
+  "subtotal": 5.35,
+  "tax": 0,
+  "tip": null,
+  "total": 5.35,
+  "payment_method": "Visa ****1234",
+  "notes": null
+}

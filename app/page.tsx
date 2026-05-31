@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, FormEvent } from 'react'
-import type { Receipt } from '@/lib/schema'
+import type { StoredReceipt } from '@/lib/schema'
 
 function fmt(n?: number | null, ccy?: string | null) {
   if (n == null) return '—'
@@ -9,28 +9,79 @@ function fmt(n?: number | null, ccy?: string | null) {
   return `${symbol}${n.toFixed(2)}`
 }
 
+interface BatchItemResult {
+  filename: string
+  ok: boolean
+  receipt?: StoredReceipt
+  error?: string
+}
+
 export default function Home() {
-  const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const [receipts, setReceipts] = useState<StoredReceipt[]>([])
+  const [failures, setFailures] = useState<{ filename: string; error: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
-  const [preview, setPreview] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const file = fileRef.current?.files?.[0]
-    if (!file) return
+    const files = fileRef.current?.files
+    if (!files || files.length === 0) return
     setLoading(true)
     setErr('')
-    setReceipt(null)
-    setPreview(URL.createObjectURL(file))
+    setReceipts([])
+    setFailures([])
+
     const fd = new FormData()
-    fd.append('file', file)
-    const res = await fetch('/api/scan', { method: 'POST', body: fd })
-    const data = await res.json()
-    setLoading(false)
-    if (data.ok) setReceipt(data.receipt)
-    else setErr(data.error || 'Failed')
+    for (const file of Array.from(files)) fd.append('file', file)
+
+    try {
+      // One file uses the single endpoint; many files use the batch endpoint.
+      if (files.length === 1) {
+        const res = await fetch('/api/scan', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.ok) setReceipts([data.receipt])
+        else setErr(data.error || 'Scan failed')
+      } else {
+        const res = await fetch('/api/scan/batch', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.ok) {
+          setReceipts(
+            (data.results as BatchItemResult[]).filter((r) => r.ok && r.receipt).map((r) => r.receipt!),
+          )
+          setFailures(
+            (data.results as BatchItemResult[])
+              .filter((r) => !r.ok)
+              .map((r) => ({ filename: r.filename, error: r.error || 'Scan failed' })),
+          )
+        } else {
+          setErr(data.error || 'Batch scan failed')
+        }
+      }
+    } catch {
+      setErr('Network error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function exportOfx() {
+    const res = await fetch('/api/export/ofx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receipts }),
+    })
+    if (!res.ok) {
+      setErr('OFX export failed')
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'receipts.ofx'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -38,7 +89,7 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-3xl font-bold mb-2">Receipt Scanner</h1>
         <p className="text-zinc-400 text-sm">
-          Drop a photo of a receipt. Get structured JSON. MIT-licensed starter.
+          Drop one receipt or fifty. Get structured JSON, export to OFX. MIT-licensed starter.
         </p>
       </header>
 
@@ -48,11 +99,8 @@ export default function Home() {
             ref={fileRef}
             type="file"
             accept="image/*,application/pdf"
+            multiple
             required
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) setPreview(URL.createObjectURL(f))
-            }}
             className="flex-1 text-sm text-zinc-300 file:mr-3 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:bg-violet-500 file:text-white file:font-medium hover:file:bg-violet-400 cursor-pointer"
           />
           <button
@@ -60,25 +108,40 @@ export default function Home() {
             disabled={loading}
             className="px-6 py-2.5 rounded-lg bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-medium text-sm transition-colors"
           >
-            {loading ? 'Scanning…' : 'Scan receipt'}
+            {loading ? 'Scanning…' : 'Scan receipts'}
           </button>
         </div>
+        <p className="text-xs text-zinc-500 mt-3">Select multiple files for a batch. Up to 50 per upload.</p>
       </form>
 
       {err && <div className="border border-red-500/30 bg-red-500/10 text-red-300 rounded-lg px-4 py-3 mb-8 text-sm">{err}</div>}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {preview && (
-          <div className="border border-white/10 rounded-2xl p-3 bg-white/[0.02]">
-            <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 px-2">Image</p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Receipt" className="rounded-lg max-h-[600px] object-contain w-full" />
-          </div>
-        )}
+      {failures.length > 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/10 text-amber-300 rounded-lg px-4 py-3 mb-8 text-sm">
+          <p className="font-medium mb-1">{failures.length} file(s) could not be scanned:</p>
+          <ul className="list-disc list-inside text-amber-200/80">
+            {failures.map((f, i) => (
+              <li key={i}>{f.filename}: {f.error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-        {receipt && (
-          <div className="border border-white/10 rounded-2xl p-6 bg-white/[0.02]">
-            <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">Extracted</p>
+      {receipts.length > 0 && (
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-sm text-zinc-400">{receipts.length} receipt(s) scanned</p>
+          <button
+            onClick={exportOfx}
+            className="px-4 py-2 rounded-lg border border-white/15 hover:border-white/30 text-zinc-200 text-sm font-medium transition-colors"
+          >
+            Export OFX
+          </button>
+        </div>
+      )}
+
+      <div className="grid gap-6">
+        {receipts.map((receipt, idx) => (
+          <div key={receipt.id ?? idx} className="border border-white/10 rounded-2xl p-6 bg-white/[0.02]">
             <h2 className="text-xl font-semibold mb-1">{receipt.vendor || 'Unknown vendor'}</h2>
             <p className="text-zinc-400 text-sm mb-1">{receipt.vendor_address || ''}</p>
             <p className="text-zinc-500 text-xs mb-6">{receipt.date} {receipt.time}</p>
@@ -114,7 +177,7 @@ export default function Home() {
               </pre>
             </details>
           </div>
-        )}
+        ))}
       </div>
 
       <footer className="mt-20 text-xs text-zinc-600 text-center">

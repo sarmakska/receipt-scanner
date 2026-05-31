@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { scanReceipt } from '@/lib/vision'
-import { save } from '@/lib/persist'
+import { processReceipt } from '@/lib/pipeline'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -13,11 +12,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'No file uploaded' }, { status: 400 })
     }
     const buf = Buffer.from(await file.arrayBuffer())
-    const receipt = await scanReceipt(buf, file.type || 'image/jpeg')
-    const persisted = await save(receipt)
-    return NextResponse.json({ ok: true, id: persisted.id, receipt })
-  } catch (e: any) {
+    const receipt = await processReceipt(buf, file.type || 'image/jpeg')
+    return NextResponse.json({ ok: true, id: receipt.id, receipt })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Scan failed'
     console.error('Scan error:', e)
-    return NextResponse.json({ ok: false, error: e?.message || 'Scan failed' }, { status: 500 })
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
 }

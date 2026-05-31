@@ -15,9 +15,14 @@ create table if not exists receipts (
   total           numeric(12, 2),
   payment_method  text,
   notes           text,
+  image_key       text,           -- R2 object key of the original image
+  image_sha256    text,           -- content hash, doubles as a dedup key
   raw             jsonb not null,
   created_at      timestamptz not null default now()
 );
+
+create unique index if not exists receipts_image_sha256_idx
+  on receipts (image_sha256) where image_sha256 is not null;
 
 create table if not exists receipt_items (
   id           uuid primary key default gen_random_uuid(),

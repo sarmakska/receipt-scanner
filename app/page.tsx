@@ -65,6 +65,15 @@ export default function Home() {
     }
   }
 
+  async function download(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function exportOfx() {
     const res = await fetch('/api/export/ofx', {
       method: 'POST',
@@ -75,13 +84,20 @@ export default function Home() {
       setErr('OFX export failed')
       return
     }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'receipts.ofx'
-    a.click()
-    URL.revokeObjectURL(url)
+    await download(await res.blob(), 'receipts.ofx')
+  }
+
+  async function exportCsv(layout: 'summary' | 'items') {
+    const res = await fetch('/api/export/csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receipts, layout }),
+    })
+    if (!res.ok) {
+      setErr('CSV export failed')
+      return
+    }
+    await download(await res.blob(), layout === 'items' ? 'receipt-items.csv' : 'receipts.csv')
   }
 
   return (
@@ -89,7 +105,7 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-3xl font-bold mb-2">Receipt Scanner</h1>
         <p className="text-zinc-400 text-sm">
-          Drop one receipt or fifty. Get structured JSON, export to OFX. MIT-licensed starter.
+          Drop one receipt or fifty. Get structured JSON, export to CSV or OFX. MIT-licensed starter.
         </p>
       </header>
 
@@ -130,12 +146,26 @@ export default function Home() {
       {receipts.length > 0 && (
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-zinc-400">{receipts.length} receipt(s) scanned</p>
-          <button
-            onClick={exportOfx}
-            className="px-4 py-2 rounded-lg border border-white/15 hover:border-white/30 text-zinc-200 text-sm font-medium transition-colors"
-          >
-            Export OFX
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportCsv('summary')}
+              className="px-4 py-2 rounded-lg border border-white/15 hover:border-white/30 text-zinc-200 text-sm font-medium transition-colors"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => exportCsv('items')}
+              className="px-4 py-2 rounded-lg border border-white/15 hover:border-white/30 text-zinc-200 text-sm font-medium transition-colors"
+            >
+              Export items CSV
+            </button>
+            <button
+              onClick={exportOfx}
+              className="px-4 py-2 rounded-lg border border-white/15 hover:border-white/30 text-zinc-200 text-sm font-medium transition-colors"
+            >
+              Export OFX
+            </button>
+          </div>
         </div>
       )}
 

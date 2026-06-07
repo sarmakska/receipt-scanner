@@ -16,7 +16,7 @@ Built by [Sarma Linux](https://sarmalinux.com).
 
 ## What this is
 
-You upload one receipt or fifty. Each image is downscaled and re-encoded for cost, sent to Claude Opus 4.7 with the receipt schema as a structured-output constraint, validated against a Zod contract, and returned to the UI as a table. From there you can store the originals on Cloudflare R2, export to OFX for your accounting tool, or wire the JSON into Supabase, Xero, QuickBooks, or n8n.
+You upload one receipt or fifty. Each image is downscaled and re-encoded for cost, sent to Claude Opus 4.7 with the receipt schema as a structured-output constraint, validated against a Zod contract, and returned to the UI as a table. From there you can store the originals on Cloudflare R2, export to CSV or OFX for your accounting tool, or wire the JSON into Supabase, Xero, QuickBooks, or n8n.
 
 It extracts:
 
@@ -34,7 +34,7 @@ Use this when:
 - You want a working receipt-to-JSON pipeline you can fork and ship, not a tutorial.
 - You are building an expense, bookkeeping, or finance product and need a proven OCR baseline.
 - You want a strict schema boundary so malformed model output never reaches your database.
-- You need batch processing and an accounting-tool export (OFX) out of the box.
+- You need batch processing and accounting-tool exports (CSV and OFX) out of the box.
 
 Look elsewhere when:
 
@@ -58,6 +58,7 @@ flowchart TD
     E --> J[lib/persist: save]
     I --> K[StoredReceipt JSON to UI]
     K --> L[app/api/export/ofx: OFX 1.0.2]
+    K --> M[app/api/export/csv: CSV summary or items]
 ```
 
 Single-process. Server-side image handling. The vision call is constrained to the schema, so validation is a boundary, not a repair step.
@@ -72,20 +73,22 @@ cp .env.example .env.local   # add ANTHROPIC_API_KEY
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), drop in one or more receipts, see the structured tables, and click Export OFX. R2 storage is optional: leave the `R2_*` variables empty and scanning still works end to end.
+Open [http://localhost:3000](http://localhost:3000), drop in one or more receipts, see the structured tables, and click Export CSV, Export items CSV, or Export OFX. R2 storage is optional: leave the `R2_*` variables empty and scanning still works end to end.
 
 Full documentation lives in the [wiki](https://github.com/sarmakska/receipt-scanner/wiki): architecture, model and structured-output details, batch processing, OFX export, R2 storage, database wiring, edge cases, and deployment.
 
 ## What is in the box
 
-- **`app/page.tsx`** the upload UI. Drop in one file or many, see parsed tables, export OFX.
+- **`app/page.tsx`** the upload UI. Drop in one file or many, see parsed tables, export CSV or OFX.
 - **`app/api/scan/route.ts`** the single-scan endpoint.
 - **`app/api/scan/batch/route.ts`** the batch endpoint. Up to 50 files per request, per-file results.
+- **`app/api/export/csv/route.ts`** turns validated receipts into a downloadable CSV, in a per-receipt summary or per-line-item layout.
 - **`app/api/export/ofx/route.ts`** turns validated receipts into a downloadable OFX statement.
 - **`lib/pipeline.ts`** the one path through the system: store, scan, persist.
 - **`lib/vision.ts`** the single vision call. Opus 4.7, structured output, prompt caching.
 - **`lib/schema.ts`** the Zod contract every scan must satisfy before it reaches the UI, an export, or a database.
 - **`lib/storage.ts`** optional Cloudflare R2 storage for original images, content-addressed by SHA-256.
+- **`lib/csv.ts`** RFC 4180 CSV generation, summary or line-item layout, with an Excel BOM.
 - **`lib/ofx.ts`** OFX 1.0.2 generation for Xero, QuickBooks, GnuCash, and friends.
 - **`lib/persist.ts`** a no-op `save()` stub. Drop in a Supabase insert, a webhook, or your own backend.
 - **`docs/schema.sql`** a Postgres / Supabase schema that mirrors the Zod contract, ready to apply.
@@ -101,7 +104,7 @@ Full documentation lives in the [wiki](https://github.com/sarmakska/receipt-scan
 | Image processing | `sharp` | Resize and re-encode before upload, cheaper tokens, faster requests |
 | Validation | `zod` | Reject malformed model output at a single boundary |
 | Storage | Cloudflare R2 via `@aws-sdk/client-s3` | S3-compatible object store for original images |
-| Export | OFX 1.0.2 | Imports into Xero, QuickBooks, GnuCash, and most desktop tools |
+| Export | CSV (RFC 4180) and OFX 1.0.2 | CSV opens in any spreadsheet and carries line items; OFX imports into Xero, QuickBooks, GnuCash, and most desktop tools |
 | Styling | Tailwind CSS | Standard, fast |
 
 ## Configuration
@@ -121,6 +124,10 @@ When the `R2_*` variables are absent, storage is a no-op and the rest of the pip
 ## Batch upload
 
 POST several `file` parts to `/api/scan/batch` (the UI does this automatically when you select more than one file). Each file is scanned independently with bounded concurrency, and the response carries a per-file `ok`/`error` result so a single unreadable image never fails the batch.
+
+## CSV export
+
+POST the validated receipts to `/api/export/csv` and receive a downloadable `.csv` file that opens in Excel, Google Sheets, and Numbers. Two layouts: `summary` (one row per receipt, the default) and `items` (one row per purchased line, with the parent vendor and date repeated). Unlike OFX, the items layout preserves the full line-item detail of each receipt. Output is RFC 4180 with a UTF-8 BOM so Excel reads accented vendor names correctly. See [CSV-Export](https://github.com/sarmakska/receipt-scanner/wiki/CSV-Export).
 
 ## OFX export
 
@@ -148,6 +155,7 @@ Set `ANTHROPIC_API_KEY` (and the optional `R2_*` variables) in the Vercel enviro
 - [Quick-Start](https://github.com/sarmakska/receipt-scanner/wiki/Quick-Start): clone, install, first scan
 - [Vision-Models](https://github.com/sarmakska/receipt-scanner/wiki/Vision-Models): Opus 4.7, structured output, swapping providers
 - [Batch-Upload](https://github.com/sarmakska/receipt-scanner/wiki/Batch-Upload): multi-receipt processing
+- [CSV-Export](https://github.com/sarmakska/receipt-scanner/wiki/CSV-Export): summary and line-item spreadsheets
 - [OFX-Export](https://github.com/sarmakska/receipt-scanner/wiki/OFX-Export): export to accounting tools
 - [Image-Storage](https://github.com/sarmakska/receipt-scanner/wiki/Image-Storage): Cloudflare R2 originals
 - [Configuration](https://github.com/sarmakska/receipt-scanner/wiki/Configuration): all env vars
